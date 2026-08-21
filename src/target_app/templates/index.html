@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Cloud Store — Production Target Ecosystem</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo-container">
+            <span class="logo-icon">🛡️</span>
+            <div>
+                <h1>Aegis Cloud Store</h1>
+                <span class="subtitle">Cloud Infrastructure & Microservice Node</span>
+            </div>
+        </div>
+        <div class="header-status">
+            <span class="status-badge pulse-green" id="system-status">● System Operational</span>
+            <span class="pod-tag">Pod ID: aegis-target-app-production</span>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Section 1: E-Commerce Storefront -->
+        <section class="section">
+            <h2 class="section-title">📦 Cloud Infrastructure Catalog</h2>
+            <p class="section-desc">Interactive microservice endpoints generating real HTTP telemetry, structured logs, and Prometheus metrics.</p>
+            
+            <div class="grid">
+                <div class="card">
+                    <div class="card-icon">⚡</div>
+                    <h3>ARM64 Compute Node</h3>
+                    <p>High-efficiency cloud instance (4 OCPU, 24GB RAM). Generates normal 200 OK traffic.</p>
+                    <div class="card-footer">
+                        <span class="price">$49/mo</span>
+                        <button class="btn btn-primary" onclick="triggerAPI('/api/v1/order/compute')">Purchase Node</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">🔑</div>
+                    <h3>eBPF Security Key</h3>
+                    <p>Kernel-level telemetry module. Intercepts process execution and syscalls.</p>
+                    <div class="card-footer">
+                        <span class="price">$99/mo</span>
+                        <button class="btn btn-primary" onclick="triggerAPI('/api/v1/order/security-key')">Purchase Key</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <h3>Telemetry Pipeline</h3>
+                    <p>Prometheus + Loki log aggregation pipeline with zero-latency streaming.</p>
+                    <div class="card-footer">
+                        <span class="price">$149/mo</span>
+                        <button class="btn btn-primary" onclick="triggerAPI('/api/v1/inventory/telemetry')">Check Inventory</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Real-time SRE Health Telemetry Widget -->
+        <section class="section">
+            <h2 class="section-title">📊 Live Telemetry & Health Monitor</h2>
+            <div class="metrics-dashboard">
+                <div class="metric-card">
+                    <span class="metric-label">Total Requests</span>
+                    <span class="metric-value" id="stat-requests">0</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">HTTP 200 Success</span>
+                    <span class="metric-value text-green" id="stat-200">0</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">HTTP 500 Errors</span>
+                    <span class="metric-value text-red" id="stat-500">0</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Avg Latency</span>
+                    <span class="metric-value text-blue" id="stat-latency">0 ms</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Live SRE Demo Control Panel -->
+        <section class="section chaos-section">
+            <h2 class="section-title">🧪 SRE Evaluation & Chaos Control Panel</h2>
+            <p class="section-desc">Interactive triggers to test Prometheus metrics alerts, Loki log aggregation, and Falco eBPF security detection.</p>
+            
+            <div class="demo-actions">
+                <button class="btn btn-secondary" onclick="triggerAPI('/api/v1/good')">🟢 Normal Request (200 OK)</button>
+                <button class="btn btn-warning" onclick="triggerAPI('/api/v1/slow')">🟡 Slow Latency (Simulate Lag)</button>
+                <button class="btn btn-danger" onclick="triggerAPI('/api/v1/error')">🔴 Trigger 500 Internal Error</button>
+                <button class="btn btn-chaos" onclick="triggerAPI('/api/v1/chaos/shell')">🦅 Trigger Falco eBPF Shell (MITRE T1059)</button>
+                <button class="btn btn-chaos" onclick="triggerAPI('/api/v1/chaos/oom')">💣 Trigger OOM Memory Pressure</button>
+            </div>
+
+            <div class="terminal">
+                <div class="terminal-header">
+                    <span>Console Response Stream</span>
+                    <span class="live-dot">● LIVE</span>
+                </div>
+                <pre id="terminal-output" class="terminal-body">Ready for user interaction...</pre>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let reqCount = 0, successCount = 0, errorCount = 0;
+
+        async function triggerAPI(endpoint) {
+            const term = document.getElementById('terminal-output');
+            const startTime = performance.now();
+            term.textContent = `[${new Date().toISOString()}] Sending request to ${endpoint}...`;
+            
+            try {
+                const res = await fetch(endpoint);
+                const latency = Math.round(performance.now() - startTime);
+                const data = await res.json();
+                
+                reqCount++;
+                if (res.ok) successCount++; else errorCount++;
+
+                document.getElementById('stat-requests').textContent = reqCount;
+                document.getElementById('stat-200').textContent = successCount;
+                document.getElementById('stat-500').textContent = errorCount;
+                document.getElementById('stat-latency').textContent = `${latency} ms`;
+
+                term.textContent = `[${new Date().toISOString()}] Status: ${res.status} | Latency: ${latency}ms\nResponse: ${JSON.stringify(data, null, 2)}`;
+            } catch (err) {
+                term.textContent = `[${new Date().toISOString()}] Network Error: ${err.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
