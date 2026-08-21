@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # 1. Target E-Commerce Web Storefront App
+  target-app:
+    build:
+      context: ..
+      dockerfile: src/target_app/Dockerfile
+    container_name: aegis-target-app
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HOSTNAME=aegis-storefront-prod
+    restart: always
+
+  # 2. Prometheus Metric Collector
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: aegis-prometheus
+    volumes:
+      - ../config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - target-app
+    restart: always
+
+  # 3. Loki Log Store
+  loki:
+    image: grafana/loki:2.8.2
+    container_name: aegis-loki
+    volumes:
+      - ../config/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki-config.yaml
+    restart: always
+
+  # 4. Promtail Log Shipper
+  promtail:
+    image: grafana/promtail:2.8.2
+    container_name: aegis-promtail
+    volumes:
+      - ../config/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    depends_on:
+      - loki
+    restart: always
+
+  # 5. Falco eBPF Security Sensor
+  falco:
+    image: falcosecurity/falco:0.35.0
+    container_name: aegis-falco
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - /etc:/host/etc:ro
+      - ../config/falco/falco.yaml:/etc/falco/falco.yaml:ro
+      - ../config/falco/rules.local.yaml:/etc/falco/rules.local.yaml:ro
+    restart: always
+
+  # 6. Grafana Command Center Dashboard
+  grafana:
+    image: grafana/grafana:10.0.1
+    container_name: aegis-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../config/grafana/provisioning/datasources/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+      - loki
+    restart: always

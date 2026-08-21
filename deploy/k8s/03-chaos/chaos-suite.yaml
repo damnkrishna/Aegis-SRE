@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aegis-chaos-runner
+  namespace: aegis-target
+  labels:
+    app: aegis-chaos-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aegis-chaos-runner
+  template:
+    metadata:
+      labels:
+        app: aegis-chaos-runner
+    spec:
+      containers:
+        - name: chaos-pod
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Aegis Chaos Test Suite Runner Active"
+              while true; do
+                sleep 3600
+              done
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"

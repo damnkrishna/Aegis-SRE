@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aegis-system
+  labels:
+    name: aegis-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aegis-target
+  labels:
+    name: aegis-target
