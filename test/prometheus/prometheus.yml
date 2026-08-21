@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 5s     # How often Prometheus fetches metrics from targets
+  evaluation_interval: 5s # How often rules are evaluated
+
+scrape_configs:
+  # Job 1: Prometheus scraping itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Job 2: Prometheus scraping our sample app
+  - job_name: 'sample-app'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['sample-app:8000']

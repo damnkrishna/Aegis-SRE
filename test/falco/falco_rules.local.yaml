@@ -1,0 +1,37 @@
+# Aegis Custom Falco Security Rules (MITRE ATT&CK Mapped)
+
+- macro: spawned_process
+  condition: evt.type = execve and evt.dir = <
+
+- macro: open_read
+  condition: evt.type in (open, openat, openat2) and evt.dir = <
+
+- rule: Aegis Shell Spawned in Container
+  desc: Detect when a shell (bash, sh) is executed inside a container
+  condition: >
+    spawned_process and
+    (proc.name in (bash, sh, zsh, ksh, csh) or proc.cmdline contains "bash" or proc.cmdline contains "sh")
+  output: >
+    Aegis Security Alert: Shell spawned (user=%user.name cmd=%proc.cmdline pid=%proc.pid parent=%proc.pname mitre_ttp=T1059)
+  priority: WARNING
+  tags: [mitre_execution, T1059, aegis_security]
+
+- rule: Aegis Sensitive File Read
+  desc: Detect attempts to open or read sensitive Linux system files (/etc/shadow, /etc/passwd)
+  condition: >
+    open_read and
+    (fd.name startswith "/etc/shadow" or fd.name startswith "/etc/passwd")
+  output: >
+    Aegis Security Alert: Sensitive file opened (user=%user.name file=%fd.name cmd=%proc.cmdline mitre_ttp=T1552)
+  priority: ERROR
+  tags: [mitre_credential_access, T1552, aegis_security]
+
+- rule: Aegis Outbound Network Tool Executed
+  desc: Detect execution of network scanning or exfiltration tools (curl, nmap, netcat, wget)
+  condition: >
+    spawned_process and
+    proc.name in (nc, nmap, netcat, socat)
+  output: >
+    Aegis Security Alert: Network discovery tool spawned (user=%user.name cmd=%proc.cmdline mitre_ttp=T1046)
+  priority: NOTICE
+  tags: [mitre_discovery, T1046, aegis_security]

@@ -1,0 +1,91 @@
+services:
+  sample-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: aegis-sample-app
+    ports:
+      - "8000:8000"
+    networks:
+      - aegis-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: aegis-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - aegis-net
+    depends_on:
+      - sample-app
+
+  loki:
+    image: grafana/loki:2.9.2
+    container_name: aegis-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - aegis-net
+
+  promtail:
+    image: grafana/promtail:2.9.2
+    container_name: aegis-promtail
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail/promtail-config.yaml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - aegis-net
+    depends_on:
+      - loki
+
+  falco:
+    image: falcosecurity/falco:latest
+    container_name: aegis-falco
+    privileged: true
+    pid: host
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock:ro
+      - /dev:/host/dev:ro
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      - /usr:/host/usr:ro
+      - ./falco/falco.yaml:/etc/falco/falco.yaml:ro
+      - ./falco/falco_rules.local.yaml:/etc/falco/falco_rules.local.yaml:ro
+    environment:
+      - FALCO_BPF_PROBE=
+    networks:
+      - aegis-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: aegis-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - aegis-net
+    depends_on:
+      - prometheus
+      - loki
+
+networks:
+  aegis-net:
+    driver: bridge
