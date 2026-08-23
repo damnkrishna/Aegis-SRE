@@ -17,12 +17,13 @@ To ensure we **do not overcomplicate the project** or break our existing timelin
 
 ## 📋 Summary of Selected Proposals
 
-| Proposal | Inspired By | Target Phase | Implementation Complexity | Primary Benefit |
-|---|---|---|---|---|
-| **1. Standardized Chaos Test Suite** | *Cloud-OpsBench (2026)* | **Phase 1 & 6** | 🟢 Low (Simple K8s YAMLs) | Allows repeatable end-to-end testing of the entire immune system |
-| **2. Metric-to-Text Serializer** | *IBM SRE Anomaly Service (2025)* | **Phase 3** | 🟢 Low (~30 lines of Python) | Reduces LLM prompt size by ~80%, speeding up Ollama inference |
-| **3. Topology-Aware Context Bounding** | *Graph-Guided RCA (2026)* | **Phase 3 & 4** | 🟢 Low (K8s API labels query) | Prevents the LLM from hallucinating root causes in unrelated services |
-| **4. Explicit State Machine Pipeline** | *SynergyRCA (2025)* | **Phase 4 & 5** | 🟢 Low (Go / Python enum states) | Makes incident progression transparent, auditable, and easy to debug |
+| Proposal | Inspired By | Target Phase | Implementation Complexity | Primary Benefit | Implementation Status |
+|---|---|---|---|---|---|
+| **1. Standardized Chaos Test Suite** | *Cloud-OpsBench (2026)* | **Phase 1 & 6** | 🟢 Low | Repeatable end-to-end testing | ✅ Implemented in `src/target_app/` |
+| **2. Metric-to-Text Serializer** | *IBM SRE Anomaly Service (2025)* | **Phase 3** | 🟢 Low | ~80% prompt token reduction | ✅ Implemented in `src/brain/metric_serializer.py` |
+| **3. Topology-Aware Context Bounding** | *Graph-Guided RCA (2026)* | **Phase 3 & 4** | 🟢 Low | Prevents LLM hallucinations outside 1-hop | ✅ Implemented in `src/brain/rag_engine.py` |
+| **4. Explicit State Machine Pipeline** | *SynergyRCA (2025)* | **Phase 4 & 5** | 🟢 Low | Transparent state tracking & audit logging | ✅ Implemented in `src/guardrails/` |
+
 
 ---
 

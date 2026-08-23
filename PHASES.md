@@ -174,18 +174,22 @@ def validate(action_obj):
 | `confidence: 0.3` | ⚠️ ESCALATE | LLM unsure, human decides |
 
 ### Success Criteria
-- [ ] All blocked actions are rejected with a logged reason
-- [ ] Confidence threshold enforcement works correctly
-- [ ] Action objects pass schema validation before reaching the controller
-- [ ] Frequency limiter prevents restart loops
+- [x] All blocked actions (`DELETE_NAMESPACE`, `DELETE_NODE`, `PURGE_STORAGE`) are rejected with a logged reason
+- [x] Confidence threshold enforcement ($\ge 0.70$) works correctly
+- [x] Action objects pass schema validation before reaching the controller
+- [x] Frequency limiter prevents restart loops (max 3 restarts per pod per hour)
+- [x] Structured JSON decision traces written to `logs/guardrail_audit.jsonl`
+- [x] 100% Unit test pass rate (`test/test_guardrails.py`: 6/6 tests OK)
 
-### Work Division
-| Task | Owner |
-|---|---|
-| Guardrail rule engine (Go/Python) | Krishna |
-| Action schema definition (JSON Schema) | Krishna |
-| MITRE TTP → Action mapping logic | Krishna |
-| Integration tests for guardrail cases | Krishna |
+### Work Division & Status
+| Task | Owner | Status |
+|---|---|---|
+| Guardrail rule engine (`src/guardrails/validator.py`) | Krishna | ✅ Completed & Tested |
+| Action schema definition (`src/guardrails/action_schema.py`) | Krishna | ✅ Completed |
+| MITRE TTP → Action mapping logic | Krishna | ✅ Completed |
+| Integration & Unit test suite (`test/test_guardrails.py`) | Krishna | ✅ Completed (6/6 Pass) |
+| Structured Audit Logging (`logs/guardrail_audit.jsonl`) | Krishna | ✅ Completed |
+
 
 ---
 

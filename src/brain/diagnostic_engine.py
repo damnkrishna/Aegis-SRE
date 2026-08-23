@@ -4,23 +4,25 @@ from src.brain.metric_serializer import MetricSerializer
 from src.brain.rag_engine import RAGEngine
 from src.brain.llm_client import LLMClient
 from src.brain.prompt_templates import SYSTEM_DIAGNOSTIC_PROMPT, USER_EVIDENCE_PROMPT_TEMPLATE
+from src.guardrails import GuardrailEngine
 
 logger = logging.getLogger("aegis-brain-engine")
 
 class DiagnosticEngine:
     """
-    Core AI Diagnostic Orchestrator for Phase 3.
+    Core AI Diagnostic Orchestrator for Phase 3 & 4.
     Coordinates Telemetry Collection, Metric Serialization, RAG Retrieval,
-    and LLM Inference to generate structured JSON Diagnostic Verdicts.
+    LLM Inference, and Guardrail Safety Engine Validation.
     """
     def __init__(self):
         self.collector = TelemetryCollector()
         self.rag = RAGEngine()
         self.llm = LLMClient()
+        self.guardrail = GuardrailEngine()
 
     def diagnose_incident(self, pod_name: str = "aegis-target-app", alert_type: str = "HTTP_500_SPIKE") -> dict:
         """
-        Executes end-to-end AI diagnosis pipeline for an incident.
+        Executes end-to-end AI diagnosis pipeline for an incident and validates output through Guardrails.
         """
         logger.info(f"Starting AI Diagnosis for pod '{pod_name}' (Alert: {alert_type})...")
 
@@ -50,6 +52,24 @@ class DiagnosticEngine:
 
         # 5. Generate LLM JSON Verdict
         verdict = self.llm.generate_json_diagnosis(SYSTEM_DIAGNOSTIC_PROMPT, user_prompt)
+        verdict["target_pod"] = pod_name
         logger.info(f"Diagnostic Verdict Generated: {verdict.get('problem_type')} -> {verdict.get('recommended_action')}")
         
+        # 6. Pass verdict through Catastrophic Guardrail Safety Engine (Phase 4)
+        decision = self.guardrail.validate_verdict(verdict)
+        
+        verdict["guardrail_validation"] = {
+            "approved": decision.approved,
+            "final_action": decision.final_action,
+            "state": decision.state,
+            "reason": decision.reason,
+            "confidence": decision.confidence,
+            "original_action": decision.original_action,
+            "rate_limit_exceeded": decision.rate_limit_exceeded
+        }
+
+        # Override recommended_action with validated final_action
+        verdict["recommended_action"] = decision.final_action
+
         return verdict
+

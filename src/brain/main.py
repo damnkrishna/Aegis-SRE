@@ -8,10 +8,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aegis-brain-api")
 
 app = FastAPI(
-    title="Aegis-SRE Diagnostic AI Brain API",
-    description="Phase 3 AI Brain Engine providing LLM + RAG automated incident diagnosis",
-    version="1.0.0"
+    title="Aegis-SRE Diagnostic AI Brain & Guardrail API",
+    description="Phase 3 & 4 AI Brain Engine providing LLM + RAG automated incident diagnosis and Catastrophic Guardrail Safety Validation",
+    version="1.1.0"
 )
+
 
 diagnostic_engine = DiagnosticEngine()
 
