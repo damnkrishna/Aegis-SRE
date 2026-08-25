@@ -55,18 +55,26 @@ Aegis-SRE is benchmarked against the 8 real-world microservice failure categorie
 
 ```text
 Ran 6 tests in 0.009s -> OK  (test_guardrails.py)
-Ran 5 tests in 0.050s -> OK  (test_controller.py)
-Ran 2 tests in 12.195s -> OK (test_pipeline.py)
-Ran 4 tests in 0.012s -> OK  (test_edge_cases.py)
-Ran 8 tests in 18.408s -> OK (test_chaos_benchmark.py)
+Ran 5 tests in 0.062s -> OK  (test_controller.py)
+Ran 2 tests in 12.848s -> OK (test_pipeline.py)
+Ran 4 tests in 0.038s -> OK  (test_edge_cases.py)
+Ran 8 tests in 19.104s -> OK (test_chaos_benchmark.py)
+Ran 5 tests in 12.511s -> OK (test_dashboard.py)
 
-TOTAL: 25 / 25 Tests PASSED (100% Success Rate)
+TOTAL: 30 / 30 Tests PASSED (100% Success Rate)
 ```
 
-Run full test battery & report generator:
+Run full 6-suite test battery & report generator:
 ```powershell
 $env:PYTHONPATH="."; python test/test_chaos_benchmark.py
 ```
+
+Run Masterpiece Mission Control Dashboard:
+```powershell
+$env:PYTHONPATH="."; python -m src.dashboard.server
+```
+Open browser to: `http://localhost:8000`
+
 - Benchmark JSON report: [`logs/cloud_opsbench_report.json`](file:///c:/dev/aegis-sre/logs/cloud_opsbench_report.json)
 - Executive Markdown report: [`logs/EXECUTIVE_BENCHMARK_REPORT.md`](file:///c:/dev/aegis-sre/logs/EXECUTIVE_BENCHMARK_REPORT.md)
 - Escalations Log: [`logs/escalations.jsonl`](file:///c:/dev/aegis-sre/logs/escalations.jsonl)
