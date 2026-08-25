@@ -6,14 +6,15 @@ from src.brain.diagnostic_engine import DiagnosticEngine
 from src.guardrails.validator import GuardrailEngine
 from src.controller.executor import ActionExecutor
 from src.controller.api import router as controller_router
+from src.brain.notifications import EscalationNotifier
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aegis-brain-api")
 
 app = FastAPI(
     title="Aegis-SRE Diagnostic AI Brain, Guardrail & Controller API",
-    description="Phases 3, 4 & 5 AI Brain Engine providing automated diagnosis, safety guardrails, and eBPF action execution",
-    version="1.2.0"
+    description="Phases 3, 4, 5 & 6 AI Brain Engine providing automated diagnosis, safety guardrails, eBPF action execution, and escalation notifications",
+    version="1.3.0"
 )
 
 app.include_router(controller_router)
@@ -21,6 +22,7 @@ app.include_router(controller_router)
 diagnostic_engine = DiagnosticEngine()
 guardrail_engine = GuardrailEngine()
 action_executor = ActionExecutor(dry_run_mode=True)
+escalation_notifier = EscalationNotifier()
 
 class IncidentRequest(BaseModel):
     pod_name: Optional[str] = "aegis-storefront-prod"
@@ -70,6 +72,11 @@ async def remediate_incident(req: IncidentRequest):
         # Step 3: Action Muscle Execution
         exec_result = action_executor.execute_decision(decision)
 
+        # Step 4: Dispatch Escalation Notification if human intervention required
+        escalation_info = None
+        if not decision.approved:
+            escalation_info = escalation_notifier.dispatch_escalation(decision, verdict)
+
         # Prepare clean JSON response without unserializable object
         verdict_clean = {k: v for k, v in verdict.items() if k != "decision_object"}
 
@@ -84,7 +91,8 @@ async def remediate_incident(req: IncidentRequest):
                 "confidence": decision.confidence,
                 "mitre_technique": decision.mitre_technique
             },
-            "execution_result": exec_result.to_dict()
+            "execution_result": exec_result.to_dict(),
+            "escalation_notification": escalation_info
         }
     except Exception as e:
         logger.error(f"Error during autonomous remediation pipeline: {e}")

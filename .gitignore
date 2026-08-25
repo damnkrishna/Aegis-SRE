@@ -23,6 +23,7 @@ desktop.ini
 logs/*.jsonl
 logs/forensics_*.json
 logs/cloud_opsbench_report.json
+logs/EXECUTIVE_BENCHMARK_REPORT.md
 scratch/
 
 # Sensitive key files

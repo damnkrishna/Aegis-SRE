@@ -40,6 +40,10 @@ class TestRigorousCloudOpsBenchSuite(unittest.TestCase):
         with open(BENCHMARK_REPORT_PATH, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2)
 
+        # Generate Executive Markdown Report (logs/EXECUTIVE_BENCHMARK_REPORT.md)
+        from src.brain.executive_report import ExecutiveReportGenerator
+        ExecutiveReportGenerator.generate_report(BENCHMARK_REPORT_PATH)
+
         if os.path.exists(BENCHMARK_AUDIT_PATH):
             os.remove(BENCHMARK_AUDIT_PATH)
 
