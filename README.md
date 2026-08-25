@@ -73,6 +73,11 @@ Run Masterpiece Mission Control Dashboard:
 ```powershell
 $env:PYTHONPATH="."; python -m src.dashboard.server
 ```
+
+Or Run via Docker (Zero Dependencies):
+```bash
+docker compose -f deploy/docker-compose.yml up -d --build
+```
 Open browser to: `http://localhost:8000`
 
 - Benchmark JSON report: [`logs/cloud_opsbench_report.json`](file:///c:/dev/aegis-sre/logs/cloud_opsbench_report.json)

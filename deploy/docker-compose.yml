@@ -62,7 +62,21 @@ services:
       - ../config/falco/rules.local.yaml:/etc/falco/rules.local.yaml:ro
     restart: always
 
-  # 6. Grafana Command Center Dashboard
+  # 6. Aegis-SRE Autonomous AI Brain & Mission Control Dashboard
+  aegis-dashboard:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: aegis-dashboard
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - target-app
+    restart: always
+
+  # 7. Grafana Dashboard
   grafana:
     image: grafana/grafana:10.0.1
     container_name: aegis-grafana
