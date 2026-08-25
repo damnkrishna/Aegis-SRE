@@ -22,7 +22,7 @@ To ensure we **do not overcomplicate the project** or break our existing timelin
 | **1. Standardized Chaos Test Suite** | *Cloud-OpsBench (2026)* | **Phase 1 & 6** | 🟢 Low | Repeatable end-to-end testing | ✅ Implemented in `src/target_app/` |
 | **2. Metric-to-Text Serializer** | *IBM SRE Anomaly Service (2025)* | **Phase 3** | 🟢 Low | ~80% prompt token reduction | ✅ Implemented in `src/brain/metric_serializer.py` |
 | **3. Topology-Aware Context Bounding** | *Graph-Guided RCA (2026)* | **Phase 3 & 4** | 🟢 Low | Prevents LLM hallucinations outside 1-hop | ✅ Implemented in `src/brain/rag_engine.py` |
-| **4. Explicit State Machine Pipeline** | *SynergyRCA (2025)* | **Phase 4 & 5** | 🟢 Low | Transparent state tracking & audit logging | ✅ Implemented in `src/guardrails/` |
+| **4. Explicit State Machine Pipeline** | *SynergyRCA (2025)* | **Phase 4 & 5** | 🟢 Low | Transparent state tracking & audit logging | ✅ Implemented in `src/guardrails/` & `src/controller/` |
 
 
 ---

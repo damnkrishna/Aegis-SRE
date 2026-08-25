@@ -58,6 +58,7 @@ class DiagnosticEngine:
         # 6. Pass verdict through Catastrophic Guardrail Safety Engine (Phase 4)
         decision = self.guardrail.validate_verdict(verdict)
         
+        verdict["decision_object"] = decision
         verdict["guardrail_validation"] = {
             "approved": decision.approved,
             "final_action": decision.final_action,

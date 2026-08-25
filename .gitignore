@@ -20,6 +20,8 @@ desktop.ini
 
 # Logs & Temporary files
 *.log
+logs/*.jsonl
+logs/forensics_*.json
 scratch/
 
 # Sensitive key files

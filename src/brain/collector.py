@@ -26,14 +26,14 @@ class TelemetryCollector:
         }
         try:
             # Query Total Requests
-            resp = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": "sum(http_requests_total)"}, timeout=2)
+            resp = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": "sum(http_requests_total)"}, timeout=0.5)
             if resp.status_code == 200:
                 results = resp.json().get("data", {}).get("result", [])
                 if results:
                     metrics_data["total_requests"] = int(float(results[0]["value"][1]))
 
             # Query 500 Errors
-            resp_err = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": 'sum(http_requests_total{status="500"})'}, timeout=2)
+            resp_err = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": 'sum(http_requests_total{status="500"})'}, timeout=0.5)
             if resp_err.status_code == 200:
                 err_results = resp_err.json().get("data", {}).get("result", [])
                 if err_results:
@@ -52,7 +52,7 @@ class TelemetryCollector:
                 "query": '{app="aegis-storefront"}',
                 "limit": limit
             }
-            resp = requests.get(query_url, params=params, timeout=2)
+            resp = requests.get(query_url, params=params, timeout=0.5)
             if resp.status_code == 200:
                 streams = resp.json().get("data", {}).get("result", [])
                 for stream in streams:
