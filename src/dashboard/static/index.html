@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS-SRE // Mission Control Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header & Mission Control Navigation -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="logo-icon">🛡️</div>
+                <div class="brand-text">
+                    <h1>AEGIS-SRE</h1>
+                    <span>Autonomous AI Site Reliability & eBPF Security Platform</span>
+                </div>
+            </div>
+
+            <div class="system-status-pills">
+                <div class="status-pill status-healthy">
+                    <span class="pulse-dot"></span> CLUSTER: K3s ACTIVE
+                </div>
+                <div class="status-pill status-ebpf">
+                    <span class="pulse-dot"></span> eBPF: CILIUM CNI
+                </div>
+                <div class="status-pill status-brain">
+                    <span class="pulse-dot"></span> AI BRAIN: ONLINE
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Mission Control Grid -->
+        <main class="dashboard-grid">
+            
+            <!-- Top Metric Scorecard Banner -->
+            <section class="scorecard-banner">
+                <div class="score-card">
+                    <div class="card-label">HEALTH SCORE</div>
+                    <div class="card-value emerald" id="val-health-score">100.0%</div>
+                    <div class="card-subtext">Cluster Normal</div>
+                </div>
+                <div class="score-card">
+                    <div class="card-label">ACTIVE PODS</div>
+                    <div class="card-value cyan" id="val-active-pods">3</div>
+                    <div class="card-subtext">Storefront Microservice</div>
+                </div>
+                <div class="score-card">
+                    <div class="card-label">eBPF QUARANTINES</div>
+                    <div class="card-value amber" id="val-quarantined-pods">0</div>
+                    <div class="card-subtext">Network Cages Active</div>
+                </div>
+                <div class="score-card">
+                    <div class="card-label">HUMAN ESCALATIONS</div>
+                    <div class="card-value alert" id="val-escalations-count">0</div>
+                    <div class="card-subtext" id="sub-escalations">Requires Operator Action</div>
+                </div>
+            </section>
+
+            <!-- Column 1: Pod Telemetry Matrix -->
+            <section class="panel pod-matrix-panel">
+                <div class="panel-header">
+                    <h2>📦 Kubernetes Pod Telemetry Matrix</h2>
+                    <span class="badge" id="pod-count-badge">3 Pods Running</span>
+                </div>
+                <div class="pod-cards-container" id="pod-cards-list">
+                    <!-- Dynamic Pod Cards Rendered via JS -->
+                </div>
+            </section>
+
+            <!-- Column 2: Cyberpunk AI Diagnostic Terminal Stream -->
+            <section class="panel terminal-panel">
+                <div class="panel-header">
+                    <h2>🧠 Real-Time AI Diagnostic & Reasoning Trajectory</h2>
+                    <span class="badge badge-cyan">WebSocket Stream</span>
+                </div>
+                <div class="terminal-window" id="terminal-window">
+                    <div class="terminal-log-line log-info">
+                        <span class="log-time">[00:00:00]</span>
+                        <span class="log-cat">[SYSTEM]</span>
+                        <span class="log-msg">Connecting to Aegis Diagnostic WebSocket stream...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bottom Row: Security Quarantine & Chaos Console -->
+            <section class="panel quarantine-panel">
+                <div class="panel-header">
+                    <h2>🔒 Active eBPF Security Cages & Forensics</h2>
+                    <span class="badge badge-red" id="quarantine-count-badge">0 Isolated</span>
+                </div>
+                <div class="quarantine-list" id="quarantine-list">
+                    <div class="empty-state">No pods currently isolated under eBPF network quarantine.</div>
+                </div>
+            </section>
+
+            <!-- Interactive Production Chaos Simulation Console -->
+            <section class="panel chaos-console-panel">
+                <div class="panel-header">
+                    <h2>⚡ Production Chaos Simulation Console</h2>
+                    <span class="badge badge-purple">Interactive Live Trigger</span>
+                </div>
+                <div class="chaos-buttons-grid">
+                    <button class="chaos-btn chaos-oom" onclick="triggerChaos('oom')">
+                        <span class="btn-icon">🧠</span>
+                        <div class="btn-text">
+                            <strong>Inject Memory Leak</strong>
+                            <span>Simulate OOMKilled Risk</span>
+                        </div>
+                    </button>
+
+                    <button class="chaos-btn chaos-http500" onclick="triggerChaos('http500')">
+                        <span class="btn-icon">💥</span>
+                        <div class="btn-text">
+                            <strong>Inject 500 Error Flood</strong>
+                            <span>Unhandled App Exception</span>
+                        </div>
+                    </button>
+
+                    <button class="chaos-btn chaos-cpu" onclick="triggerChaos('cpu')">
+                        <span class="btn-icon">🔥</span>
+                        <div class="btn-text">
+                            <strong>Inject CPU Saturation</strong>
+                            <span>High Load >90% Quota</span>
+                        </div>
+                    </button>
+
+                    <button class="chaos-btn chaos-shell" onclick="triggerChaos('t1059_shell')">
+                        <span class="btn-icon">☠️</span>
+                        <div class="btn-text">
+                            <strong>Inject MITRE T1059 Shell</strong>
+                            <span>Falco eBPF Reverse Shell</span>
+                        </div>
+                    </button>
+
+                    <button class="chaos-btn chaos-creds" onclick="triggerChaos('t1552_credentials')">
+                        <span class="btn-icon">🔑</span>
+                        <div class="btn-text">
+                            <strong>Inject MITRE T1552 Scrape</strong>
+                            <span>Sensitive Credential Read</span>
+                        </div>
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Hidden DFIR Forensics Modal Dialog -->
+    <div class="modal-overlay" id="forensics-modal">
+        <div class="modal-content glassmorphism">
+            <div class="modal-header">
+                <h2>🔎 Digital Forensics (DFIR) Snapshot</h2>
+                <button class="close-btn" onclick="closeForensicsModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="forensics-modal-body">
+                <!-- Rendered dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Human-in-the-Loop (HITL) Escalation & Remediation Control Drawer -->
+    <div class="drawer-overlay" id="hitl-drawer-overlay" onclick="closeHITLDrawer()"></div>
+    <div class="hitl-drawer glassmorphism" id="hitl-drawer">
+        <div class="drawer-header">
+            <div class="drawer-title">
+                <span class="alert-icon">⚠️</span>
+                <div>
+                    <h2>HUMAN ESCALATION & REMEDIATION CONTROL</h2>
+                    <span id="hitl-inc-id">Incident ID: INC-ESCALATION</span>
+                </div>
+            </div>
+            <button class="close-btn" onclick="closeHITLDrawer()">&times;</button>
+        </div>
+
+        <div class="drawer-body">
+            <!-- Escalation Summary -->
+            <div class="drawer-section">
+                <h3>📌 Incident Summary</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Target Pod</span>
+                        <span class="info-val cyan" id="hitl-pod-name">aegis-storefront-prod-1</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Problem Classification</span>
+                        <span class="info-val amber" id="hitl-problem-type">OPERATIONAL_BUG</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">AI Diagnostic Confidence</span>
+                        <span class="info-val alert" id="hitl-confidence">0.45 (LOW)</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Escalation Trigger Reason</span>
+                        <span class="info-val" id="hitl-reason">Diagnostic confidence below 0.70 threshold.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loki Log Trace -->
+            <div class="drawer-section">
+                <h3>📜 Loki Log & Telemetry Evidence</h3>
+                <pre class="code-box" id="hitl-logs">[ERROR] Database connection pool exhausted on /api/v1/storefront</pre>
+            </div>
+
+            <!-- Process Tree Forensics -->
+            <div class="drawer-section">
+                <h3>🔍 Process & Socket Forensics</h3>
+                <div id="hitl-forensics-container">
+                    <pre class="code-box" id="hitl-forensics">PID 1: python app.py (root)</pre>
+                </div>
+            </div>
+
+            <!-- Direct Human Remediation Dispatch Console -->
+            <div class="drawer-section direct-action-section">
+                <h3>🛠️ Direct Human Remediation Action Dispatcher</h3>
+                <p>Select or specify the fixing action to execute directly on the Kubernetes cluster:</p>
+                
+                <div class="action-options-grid">
+                    <button class="action-btn action-restart" onclick="executeHITLAction('RESTART_POD')">
+                        🔄 Execute Rollout Restart
+                    </button>
+                    <button class="action-btn action-scale" onclick="executeHITLAction('SCALE_DEPLOYMENT')">
+                        📈 Scale Deployment (+1 Replica)
+                    </button>
+                    <button class="action-btn action-unquarantine" onclick="executeHITLAction('UNQUARANTINE_POD')">
+                        🔓 Remove eBPF Network Cage
+                    </button>
+                </div>
+
+                <div class="custom-command-box">
+                    <label for="hitl-custom-notes">Operator Resolution Notes / Audit Logs:</label>
+                    <input type="text" id="hitl-custom-notes" placeholder="e.g. Verified DB connection restored manually. Approving restart." value="Manual operator resolution via HITL Control Drawer">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
