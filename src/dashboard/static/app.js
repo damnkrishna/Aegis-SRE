@@ -6,9 +6,22 @@
 let socket = null;
 let currentActiveEscalation = null;
 
+let fallbackInterval = null;
+
 document.addEventListener("DOMContentLoaded", () => {
+    fetchInitialState();
     initWebSocket();
 });
+
+async function fetchInitialState() {
+    try {
+        const resp = await fetch("/api/v1/telemetry/state");
+        const data = await resp.json();
+        handleServerEvent(data);
+    } catch (e) {
+        console.error("Initial REST fetch error:", e);
+    }
+}
 
 function initWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -18,6 +31,10 @@ function initWebSocket() {
 
     socket.onopen = () => {
         appendTerminalLog("SUCCESS", "WEBSOCKET", "Connected to Aegis Mission Control real-time telemetry stream.");
+        if (fallbackInterval) {
+            clearInterval(fallbackInterval);
+            fallbackInterval = null;
+        }
     };
 
     socket.onmessage = (event) => {
@@ -30,7 +47,10 @@ function initWebSocket() {
     };
 
     socket.onclose = () => {
-        appendTerminalLog("WARN", "WEBSOCKET", "Connection closed. Reconnecting in 3s...");
+        appendTerminalLog("WARN", "WEBSOCKET", "Connection dropped. Using HTTP REST fallback stream...");
+        if (!fallbackInterval) {
+            fallbackInterval = setInterval(fetchInitialState, 2000);
+        }
         setTimeout(initWebSocket, 3000);
     };
 

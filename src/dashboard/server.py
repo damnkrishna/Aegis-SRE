@@ -147,15 +147,40 @@ async def websocket_endpoint(websocket: WebSocket):
         "pods": list(POD_TELEMETRY_STORE.values()),
         "quarantines": list(ACTIVE_QUARANTINES.values()),
         "escalations": list(ESCALATED_INCIDENTS.values()),
-        "terminal_logs": TERMINAL_LOGS[-25:]
+        "terminal_logs": TERMINAL_LOGS[-25:],
+        "metrics_summary": {
+            "health_score_pct": 100.0 if not ACTIVE_QUARANTINES and not ESCALATED_INCIDENTS else 75.0,
+            "active_pods": len(POD_TELEMETRY_STORE),
+            "quarantined_pods": len(ACTIVE_QUARANTINES),
+            "escalated_count": len(ESCALATED_INCIDENTS)
+        }
     }
     await websocket.send_json(initial_msg)
     try:
         while True:
-            data = await websocket.receive_text()
-            # Heartbeat handling
+            await asyncio.sleep(1.0)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
+    except Exception as e:
+        ws_manager.disconnect(websocket)
+
+@app.get("/api/v1/telemetry/state")
+async def get_telemetry_state():
+    """HTTP REST State endpoint fallback."""
+    return {
+        "event": "TELEMETRY_TICK",
+        "timestamp": time.strftime("%H:%M:%S"),
+        "pods": list(POD_TELEMETRY_STORE.values()),
+        "quarantines": list(ACTIVE_QUARANTINES.values()),
+        "escalations": list(ESCALATED_INCIDENTS.values()),
+        "terminal_logs": TERMINAL_LOGS[-25:],
+        "metrics_summary": {
+            "health_score_pct": 100.0 if not ACTIVE_QUARANTINES and not ESCALATED_INCIDENTS else 75.0,
+            "active_pods": len(POD_TELEMETRY_STORE),
+            "quarantined_pods": len(ACTIVE_QUARANTINES),
+            "escalated_count": len(ESCALATED_INCIDENTS)
+        }
+    }
 
 # Models for Chaos & Manual Remediation Request
 class ChaosTriggerRequest(BaseModel):
