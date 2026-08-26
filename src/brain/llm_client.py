@@ -10,9 +10,9 @@ class LLMClient:
     Interfaces with local Ollama (Llama 3.1 8B / 3.2 3B) with automatic
     fallback to Groq / Gemini free cloud API if Ollama is not installed locally.
     """
-    def __init__(self, ollama_url: str = None, model_name: str = "llama3.1:8b"):
+    def __init__(self, ollama_url: str = None, model_name: str = None):
         self.ollama_url = ollama_url or os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        self.model_name = model_name
+        self.model_name = model_name or os.getenv("OLLAMA_MODEL", "llama3.2:3b")
         self.groq_api_key = os.getenv("GROQ_API_KEY", None)
 
     def generate_json_diagnosis(self, system_prompt: str, user_prompt: str) -> dict:
@@ -21,9 +21,18 @@ class LLMClient:
         """
         # Try local Ollama first
         try:
+            target_model = self.model_name
+            tags_resp = requests.get(f"{self.ollama_url}/api/tags", timeout=3)
+            if tags_resp.status_code == 200:
+                installed_models = [m.get("name") for m in tags_resp.json().get("models", []) if isinstance(m, dict)]
+                if installed_models and target_model not in installed_models:
+                    # Pick matching model or first available model
+                    matched = [m for m in installed_models if target_model.split(":")[0] in m]
+                    target_model = matched[0] if matched else installed_models[0]
+
             url = f"{self.ollama_url}/api/chat"
             payload = {
-                "model": self.model_name,
+                "model": target_model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -31,15 +40,25 @@ class LLMClient:
                 "format": "json",
                 "stream": False
             }
-            resp = requests.post(url, json=payload, timeout=10)
+            resp = requests.post(url, json=payload, timeout=35)
             if resp.status_code == 200:
-                raw_json = resp.json().get("message", {}).get("content", "{}")
-                return json.loads(raw_json)
+                raw_json = resp.json().get("message", {}).get("content", "{}").strip()
+                if raw_json.startswith("```"):
+                    raw_json = raw_json.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                start_idx = raw_json.find("{")
+                end_idx = raw_json.rfind("}")
+                if start_idx != -1 and end_idx != -1:
+                    raw_json = raw_json[start_idx:end_idx+1]
+                verdict = json.loads(raw_json)
+                verdict["_ai_provider"] = f"Ollama ({target_model})"
+                return verdict
         except Exception as e:
-            logger.info(f"Ollama local client un-reachable ({e}). Using Aegis Rule-Based Diagnostic Fallback Engine.")
+            logger.warning(f"Ollama AI call failed or unreachable ({e}). Using Aegis Rule-Based Diagnostic Fallback Engine.")
 
         # Heuristic Rule-Based Diagnostic Engine (Guaranteed zero-dependency fallback)
-        return self._rule_based_fallback(user_prompt)
+        verdict = self._rule_based_fallback(user_prompt)
+        verdict["_ai_provider"] = "Rule-Based Fallback Engine"
+        return verdict
 
     def _rule_based_fallback(self, user_prompt: str) -> dict:
         """
