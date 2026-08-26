@@ -1,9 +1,9 @@
 # 🛡️ Aegis-SRE: Autonomous Self-Healing Infrastructure
 
-> *"An Adaptive Immune System for Cloud-Native Environments"*
+> *An Adaptive Immune System for Cloud-Native Kubernetes Environments*
 
-[![K3s](https://img.shields.io/badge/Kubernetes-K3s-326CE5)](https://k3s.io/)
-[![Ollama](https://img.shields.io/badge/LLM-Llama%203.1%208B-green)](https://ollama.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-K3s-326CE5)](https://k3s.io/)
+[![Ollama](https://img.shields.io/badge/LLM-Ollama%20(Llama%203.2%20%2F%203.1)-green)](https://ollama.com/)
 [![Falco](https://img.shields.io/badge/Security-Falco%20%2B%20eBPF-blue)](https://falco.org/)
 [![Cilium](https://img.shields.io/badge/Network-Cilium-F8C517)](https://cilium.io/)
 
@@ -13,63 +13,91 @@
 
 ## 🧠 What is Aegis-SRE?
 
-**Aegis-SRE** is an autonomous operations platform that acts as an **Adaptive Immune System** for Kubernetes environments. It uses **LLM-driven diagnostics** (Llama 3.1 via Ollama) and **eBPF-powered security** (Falco + Cilium) to automatically distinguish between two fundamentally different types of infrastructure failure:
+**Aegis-SRE** is an autonomous operations platform that acts as an **Adaptive Immune System** for Kubernetes environments. It combines **LLM-driven diagnostics** (Llama 3.2 3B / Llama 3.1 8B via Ollama) and **eBPF-powered security rules** (Falco + Cilium) to automatically distinguish between two fundamentally different types of infrastructure failure:
 
 | Problem Type | Nature | Aegis Response |
 |---|---|---|
-| 🐛 **Operational Bug** | Memory leak, OOM crash, pod failure | **HEAL** → Restart / Scale |
-| 🔴 **Security Attack** | Reverse shell, credential scrape, T1059 | **DEFEND** → Isolate via Cilium |
+| 🐛 **Operational Bug** | Memory leak, OOM crash, pod failure | **HEAL** → Rollout Restart / Scale |
+| 🔴 **Security Attack** | Reverse shell, credential scrape, T1059 | **DEFEND** → Isolate via Cilium eBPF |
 
-The core insight: **fixing a hacker with a restart is useless**. Aegis knows the difference.
-
----
-
-## 🏗️ The "Smart Building" Mental Model
-
-Think of your cloud infrastructure as a **high-rise apartment building**:
-
-- 🌡️ **Prometheus** = Thermometer in every room (detects CPU/RAM heat)
-- 📷 **Falco** = Security camera watching for lock-pickers (syscall monitoring)
-- 🧠 **Llama 3.1** = Smart Consultant who has read every fire-safety book
-- 📋 **Guardrails** = Grumpy manager who vetoes "burn the building down"
-- 🤖 **Go Controller** = Robot hand that physically locks the door
-- 🔒 **Cilium** = Invisible cage — tenant can't call out or move around
-- 📱 **Dashboard** = Boss's phone notification while they sip coffee
+**Key Insight:** Restarting a container under active intrusion does not eliminate the attacker. Aegis isolates security threats while maintaining container state for forensic analysis.
 
 ---
 
-## 🔄 The Two Healing Paths
+## 💻 Implementation & Execution Modes
 
-### Path A — The SRE Path (Bug / Common Cold)
+Aegis-SRE is structured into two distinct execution modes:
+
+1. **Local Reference Software Implementation (Built & Tested in Repository)**:
+   - **Local LLM & RAG Engine**: Python-based AI diagnostic brain interfacing with local Ollama (`llama3.2:3b` / `llama3.1:8b`) with automatic model discovery and TF-IDF vector retrieval.
+   - **Guardrail Safety Engine**: Rule-based validator enforcing action blocklists (`DELETE_NAMESPACE`), confidence thresholds ($\ge 0.70$), rate limits (max 3 restarts/hr), and audit logging.
+   - **Go Controller**: Native Go Kubernetes controller (`controller/main.go`) built with `client-go` executing restarts, scaling, and Cilium NetworkPolicy quarantine YAML generation.
+   - **Real-Time Command Dashboard**: FastAPI & WebSockets server (`src/dashboard/server.py`) rendering telemetry, live pod matrix, HITL remediation drawer, and DFIR forensic modal.
+   - **Full Test Battery**: 30 automated tests across 6 test suites including the 8-category Cloud-OpsBench chaos suite (`test/test_chaos_benchmark.py`).
+
+2. **Target Cloud Deployment Architecture**:
+   - Manifests and step-by-step guides ([`PHASE1_CLOUD_SETUP.md`](file:///c:/dev/aegis-sre/PHASE1_CLOUD_SETUP.md)) for deploying K3s on Oracle Cloud ARM A1 (Always Free) connected to an Azure B1s monitoring host.
+
+---
+
+## 🏗️ Architecture Mental Model
+
+Think of cloud infrastructure monitoring like a **facility management system**:
+
+- 🌡️ **Prometheus** = Telemetry sensors measuring CPU/RAM saturation.
+- 📷 **Falco** = Kernel security sensors detecting unauthorized process execution.
+- 🧠 **Ollama LLM** = Diagnostic brain reading runbooks to classify incidents.
+- 📋 **Guardrails** = Safety controller vetoing destructive or un-confident actions.
+- 🤖 **Go Controller** = Execution engine applying Kubernetes state changes.
+- 🔒 **Cilium** = eBPF network isolation cage blocking threat ingress/egress.
+- 📱 **Dashboard** = WebSockets command interface for human oversight and control.
+
+---
+
+## 🔄 The Two Remediation Paths
+
+### Path A — The Operational Bug Path
+```text
+Alert: "OOMKilled on pod checkout-service"
+  → Ollama LLM: "Memory leak detected, no threat indicators"
+  → Action: {"action": "RESTART_POD", "target": "checkout-service"}
+  → Guardrails: ✅ APPROVED (Passed confidence & rate limits)
+  → Go Controller: Executes rollout restart & verifies post-health state
 ```
-Alert: "OOM Kill on pod checkout-service"
-  → LLM: "Memory leak detected, not a threat"
-  → Action: {"action": "RESTART", "target": "checkout-service"}
-  → Guardrails: ✅ APPROVED
-  → Go Controller executes kubectl rollout
+
+### Path B — The Security Threat Path
+```text
+Alert: "Falco: Shell spawned in container (T1059)"
+  → Ollama LLM: "Active intrusion detected"
+  → Action: {"action": "CILIUM_QUARANTINE_EBPF", "target": "pod-xyz", "reason": "T1059"}
+  → Guardrails: ✅ APPROVED (Forces isolation over restart)
+  → Go Controller: Applies Cilium NetworkPolicy → DROP all traffic
+  → Result: Attacker isolated in eBPF cage; pod preserved for DFIR forensics
 ```
 
-## 📊 Rigorous Cloud-OpsBench Chaos Benchmark (arXiv:2603.00468)
+---
 
-Aegis-SRE is benchmarked against the 8 real-world microservice failure categories defined in ***Cloud-OpsBench: A Reproducible Benchmark for Agentic RCA***:
+## 📊 Verification & Test Battery (30 / 30 Tests Passed)
+
+Aegis-SRE is benchmarked against the 8 real-world microservice failure categories defined in ***Cloud-OpsBench: A Reproducible Benchmark for Agentic RCA*** (`arXiv:2603.00468`):
 
 ```text
-Ran 6 tests in 0.009s -> OK  (test_guardrails.py)
-Ran 5 tests in 0.062s -> OK  (test_controller.py)
-Ran 2 tests in 12.848s -> OK (test_pipeline.py)
-Ran 4 tests in 0.038s -> OK  (test_edge_cases.py)
-Ran 8 tests in 19.104s -> OK (test_chaos_benchmark.py)
-Ran 5 tests in 12.511s -> OK (test_dashboard.py)
+Ran 6 tests in test_guardrails.py      -> OK
+Ran 5 tests in test_controller.py      -> OK
+Ran 2 tests in test_pipeline.py        -> OK
+Ran 4 tests in test_edge_cases.py      -> OK
+Ran 8 tests in test_chaos_benchmark.py -> OK
+Ran 5 tests in test_dashboard.py       -> OK
 
 TOTAL: 30 / 30 Tests PASSED (100% Success Rate)
 ```
 
-Run full 6-suite test battery & report generator:
+Run full test suite:
 ```powershell
 $env:PYTHONPATH="."; python test/test_chaos_benchmark.py
 ```
 
-Run Masterpiece Mission Control Dashboard:
+Run Real-Time Command Dashboard:
 ```powershell
 $env:PYTHONPATH="."; python -m src.dashboard.server
 ```
@@ -84,21 +112,11 @@ Open browser to: `http://localhost:8000`
 - Executive Markdown report: [`logs/EXECUTIVE_BENCHMARK_REPORT.md`](file:///c:/dev/aegis-sre/logs/EXECUTIVE_BENCHMARK_REPORT.md)
 - Escalations Log: [`logs/escalations.jsonl`](file:///c:/dev/aegis-sre/logs/escalations.jsonl)
 
-### Path B — The Security Path (Attack / Virus)
-```
-Alert: "Falco: Shell spawned in container (T1059)"
-  → LLM: "Active intrusion detected"
-  → Action: {"action": "QUARANTINE", "target": "pod-xyz", "reason": "T1059"}
-  → Guardrails: ✅ APPROVED
-  → Go Controller applies Cilium NetworkPolicy → DROP all traffic
-  → Result: Attacker trapped in eBPF cage for forensics
-```
-
 ---
 
-## 🏛️ Architecture Overview
+## 🏛️ Target Cloud Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │          ORACLE ARM A1 — Always Free                │
 │          4 OCPU | 24 GB RAM | K3s Cluster           │
@@ -107,7 +125,7 @@ Alert: "Falco: Shell spawned in container (T1059)"
 │          ↓                                          │
 │  Prometheus + Falco eBPF + Loki (Sensing Layer)     │
 │          ↓                                          │
-│  Ollama Llama 3.1 8B + RAG Vector DB (Brain)        │
+│  Ollama (Llama 3.2 3B / 3.1 8B) + RAG DB (Brain)    │
 │          ↓                                          │
 │  Guardrail Engine → Go K8s Controller (Muscle)      │
 │          ↓                                          │
@@ -117,7 +135,7 @@ Alert: "Falco: Shell spawned in container (T1059)"
                         ↓
 ┌─────────────────────────────────────────────────────┐
 │          AZURE B1s — Free Tier                      │
-│     FastAPI + React + WebSockets Dashboard          │
+│     FastAPI + WebSockets Dashboard                  │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -125,19 +143,18 @@ Alert: "Falco: Shell spawned in container (T1059)"
 
 ## ⚙️ Core Tech Stack
 
-| Layer | Technology | Role |
+| Layer | Technology | Implementation Role |
 |---|---|---|
-| Cluster | K3s on Oracle ARM A1 | Lightweight Kubernetes |
-| Metrics | Prometheus + AlertManager | CPU/RAM/Error tracking |
-| Security | Falco + eBPF | Kernel syscall monitoring |
-| Logs | Loki + Promtail | Structured log aggregation |
-| AI Brain | Ollama + Llama 3.1 8B Q4 | LLM inference on-device |
-| Memory | Vector DB (RAG) | SRE runbooks + MITRE ATT&CK TTPs |
-| Guardrails | Go/Python rule engine | LLM output validation |
-| Controller | Go + client-go | Kubernetes reconcile loop |
+| Cluster | K3s / Docker Compose | Container orchestration & target workloads |
+| Metrics | Prometheus + AlertManager | Metric collection & threshold alerts |
+| Security | Falco + eBPF | Kernel syscall security event detection |
+| Logs | Loki + Promtail | Centralized log aggregation |
+| AI Brain | Ollama (Llama 3.2 3B / 3.1 8B) | Local LLM diagnostic inference |
+| Memory | Vector Search RAG | SRE runbooks + MITRE ATT&CK TTP lookup |
+| Guardrails | Python Safety Engine | Blocklists, confidence gates, rate limits |
+| Controller | Go + client-go | Kubernetes reconcile loop & action execution |
 | Isolation | Cilium NetworkPolicy | eBPF pod network quarantine |
-| Dashboard | React + FastAPI + WebSockets | Real-time command center |
-| VPN | Tailscale/WireGuard | Secure cross-cloud mesh |
+| Dashboard | FastAPI + WebSockets | Real-time command dashboard & HITL drawer |
 
 ---
 
@@ -145,11 +162,11 @@ Alert: "Falco: Shell spawned in container (T1059)"
 
 | Falco Alert | MITRE TTP | Aegis Response |
 |---|---|---|
-| Shell spawned in container | T1059 — Command Execution | QUARANTINE |
-| Sensitive file read (/etc/shadow) | T1552 — Credential Access | QUARANTINE |
-| Network tool launched | T1046 — Network Discovery | QUARANTINE |
-| Memory spike + OOM Kill | (Operational) | RESTART |
-| CPU throttling loop | (Operational) | SCALE |
+| Shell spawned in container | T1059 — Command Execution | CILIUM_QUARANTINE_EBPF |
+| Sensitive file read (/etc/shadow) | T1552 — Credential Access | CILIUM_QUARANTINE_EBPF |
+| Network tool launched | T1046 — Network Discovery | CILIUM_QUARANTINE_EBPF |
+| Memory spike + OOM Kill | (Operational) | RESTART_POD |
+| CPU throttling loop | (Operational) | SCALE_DEPLOYMENT |
 
 ---
 

@@ -360,9 +360,9 @@ Watch Action Queue
 | Task | Owner | Status |
 |---|---|---|
 | FastAPI backend + WebSocket server (`src/dashboard/server.py`) | Krishna | ✅ Completed & Tested |
-| HTML5 / CSS / JS Masterpiece Frontend (`src/dashboard/static/`) | Krishna | ✅ Completed & Tested |
+| HTML5 / CSS / JS Real-Time Dashboard Frontend (`src/dashboard/static/`) | Krishna | ✅ Completed & Tested |
 | Interactive Pod Telemetry Grid & Scorecards | Krishna | ✅ Completed & Tested |
-| Live WebSockets Cyberpunk Terminal Stream | Krishna | ✅ Completed & Tested |
+| Live WebSockets Terminal Stream | Krishna | ✅ Completed & Tested |
 | eBPF Quarantine & DFIR Forensics Modal Inspector | Krishna | ✅ Completed & Tested |
 | Human-in-the-Loop (HITL) Remediation Drawer | Krishna | ✅ Completed & Tested |
 | Production Chaos Simulation Console | Krishna | ✅ Completed & Tested |
