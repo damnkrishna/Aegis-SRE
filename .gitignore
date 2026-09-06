@@ -6,31 +6,76 @@ __pycache__/
 venv/
 ENV/
 env/
+build/
+dist/
+*.egg-info/
+
+# Python Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Go Build Artifacts
+controller/reconciler
+controller/reconciler.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
 
 # IDE & Editor files
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+*.bak
+*.tmp
 
 # OS files
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs & Temporary files
+# Logs & Databases
 *.log
 *.db
+*.sqlite
+*.sqlite3
 logs/*.db
+logs/*.sqlite
+logs/*.sqlite3
 logs/*.jsonl
 logs/forensics_*.json
 logs/cloud_opsbench_report.json
 logs/EXECUTIVE_BENCHMARK_REPORT.md
 scratch/
 
-# Environment & Sensitive files
+# Environment & Sensitive Cloud Credentials
 .env
 .env.*
 !.env.example
 *.key
 *.pem
+*.pub
+*.ppk
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+*service-account*.json
+*credentials*.json
+
+# Kubernetes Kubeconfig & Cluster Access
+*kubeconfig*
+*.kubeconfig
+*k3s.yaml
+k3s.yaml
+kubeconfig
