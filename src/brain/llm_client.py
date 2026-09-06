@@ -3,6 +3,9 @@ import json
 import os
 import logging
 from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger("aegis-brain-llm")
 
@@ -75,24 +78,27 @@ class LLMClient:
         # 1. Groq API
         groq_key = self.groq_api_key or os.getenv("GROQ_API_KEY")
         if groq_key:
-            try:
-                headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
-                payload = {
-                    "model": "llama-3.1-8b-instant",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    "response_format": {"type": "json_object"}
-                }
-                resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=10)
-                if resp.status_code == 200:
-                    content = resp.json()["choices"][0]["message"]["content"]
-                    data = json.loads(content)
-                    data["_ai_provider"] = "Groq Cloud (llama-3.1-8b-instant)"
-                    return data
-            except Exception as e:
-                logger.warning(f"Groq API call failed: {e}")
+            groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+            for m in [groq_model, "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "llama-3.1-8b-instant"]:
+                try:
+                    headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
+                    payload = {
+                        "model": m,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "response_format": {"type": "json_object"}
+                    }
+                    resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=10)
+                    if resp.status_code == 200:
+                        content = resp.json()["choices"][0]["message"]["content"]
+                        data = json.loads(content)
+                        data["_ai_provider"] = f"Groq Cloud ({m})"
+                        return data
+                except Exception as e:
+                    logger.debug(f"Groq model {m} attempt failed: {e}")
+                    continue
 
         # 2. Gemini API
         gemini_key = os.getenv("GEMINI_API_KEY")

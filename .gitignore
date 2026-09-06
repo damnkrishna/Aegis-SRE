@@ -28,6 +28,9 @@ logs/cloud_opsbench_report.json
 logs/EXECUTIVE_BENCHMARK_REPORT.md
 scratch/
 
-# Sensitive key files
+# Environment & Sensitive files
+.env
+.env.*
+!.env.example
 *.key
 *.pem
