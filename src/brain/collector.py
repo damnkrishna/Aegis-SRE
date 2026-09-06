@@ -16,7 +16,7 @@ class TelemetryCollector:
         self.loki_url = loki_url or os.getenv("LOKI_URL", "http://localhost:3100")
 
     def fetch_prometheus_metrics(self, pod_name: str) -> dict:
-        """Queries Prometheus for total requests, error rates, and memory usage."""
+        """Queries Prometheus for total requests, error rates, and memory usage dynamically."""
         metrics_data = {
             "total_requests": 0,
             "error_500_count": 0,
@@ -25,39 +25,78 @@ class TelemetryCollector:
             "cpu_usage_pct": 24.5
         }
         try:
-            # Query Total Requests
-            resp = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": "sum(http_requests_total)"}, timeout=0.5)
+            # Query Total Requests for target pod or cluster aggregate
+            q_total = f'sum(http_requests_total{{pod=~".*{pod_name}.*"}})' if pod_name else "sum(http_requests_total)"
+            resp = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": q_total}, timeout=(0.3, 1.5))
             if resp.status_code == 200:
                 results = resp.json().get("data", {}).get("result", [])
                 if results:
                     metrics_data["total_requests"] = int(float(results[0]["value"][1]))
+                elif pod_name:
+                    # Fallback to general cluster counter if pod label not populated
+                    resp_gen = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": "sum(http_requests_total)"}, timeout=(0.3, 1.5))
+                    if resp_gen.status_code == 200:
+                        gen_res = resp_gen.json().get("data", {}).get("result", [])
+                        if gen_res:
+                            metrics_data["total_requests"] = int(float(gen_res[0]["value"][1]))
 
             # Query 500 Errors
-            resp_err = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": 'sum(http_requests_total{status="500"})'}, timeout=0.5)
+            q_err = f'sum(http_requests_total{{pod=~".*{pod_name}.*",status="500"}})' if pod_name else 'sum(http_requests_total{status="500"})'
+            resp_err = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": q_err}, timeout=(0.3, 1.5))
             if resp_err.status_code == 200:
                 err_results = resp_err.json().get("data", {}).get("result", [])
                 if err_results:
                     metrics_data["error_500_count"] = int(float(err_results[0]["value"][1]))
+                elif pod_name:
+                    resp_err_gen = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": 'sum(http_requests_total{status="500"})'}, timeout=(0.3, 1.5))
+                    if resp_err_gen.status_code == 200:
+                        gen_err = resp_err_gen.json().get("data", {}).get("result", [])
+                        if gen_err:
+                            metrics_data["error_500_count"] = int(float(gen_err[0]["value"][1]))
+
+            # Query CPU and Memory if cAdvisor/Kubernetes metrics available
+            try:
+                resp_mem = requests.get(f"{self.prometheus_url}/api/v1/query", params={"query": f'sum(container_memory_working_set_bytes{{pod=~".*{pod_name}.*"}})/1024/1024'}, timeout=(0.3, 1.5))
+                if resp_mem.status_code == 200:
+                    mem_res = resp_mem.json().get("data", {}).get("result", [])
+                    if mem_res:
+                        metrics_data["memory_mb"] = round(float(mem_res[0]["value"][1]), 1)
+            except Exception:
+                pass
         except Exception as e:
             logger.warning(f"Prometheus query fallback: {e}")
             
         return metrics_data
 
     def fetch_loki_logs(self, pod_name: str, limit: int = 15) -> list:
-        """Queries Loki API for recent log entries."""
+        """Queries Loki API for recent log entries for a target pod."""
         logs = []
+        app_label = pod_name.split("-")[0] if "-" in pod_name else pod_name
         try:
             query_url = f"{self.loki_url}/loki/api/v1/query_range"
+            # Try pod-level query first, then app-level query
             params = {
-                "query": '{app="aegis-storefront"}',
+                "query": f'{{pod=~".*{pod_name}.*"}}',
                 "limit": limit
             }
-            resp = requests.get(query_url, params=params, timeout=0.5)
+            resp = requests.get(query_url, params=params, timeout=(0.3, 1.5))
             if resp.status_code == 200:
                 streams = resp.json().get("data", {}).get("result", [])
                 for stream in streams:
                     for entry in stream.get("values", []):
                         logs.append(entry[1])
+
+            if not logs:
+                params = {
+                    "query": f'{{app=~".*{app_label}.*"}}',
+                    "limit": limit
+                }
+                resp = requests.get(query_url, params=params, timeout=(0.3, 1.5))
+                if resp.status_code == 200:
+                    streams = resp.json().get("data", {}).get("result", [])
+                    for stream in streams:
+                        for entry in stream.get("values", []):
+                            logs.append(entry[1])
         except Exception as e:
             logger.warning(f"Loki fetch fallback: {e}")
             
@@ -79,7 +118,7 @@ class TelemetryCollector:
                 "query": '{app="falco"}',
                 "limit": 10
             }
-            resp = requests.get(query_url, params=params, timeout=0.5)
+            resp = requests.get(query_url, params=params, timeout=(0.3, 1.5))
             if resp.status_code == 200:
                 streams = resp.json().get("data", {}).get("result", [])
                 for stream in streams:

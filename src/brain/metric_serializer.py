@@ -31,16 +31,21 @@ class MetricSerializer:
         else:
             error_rate = 0.0
 
+        memory_pct = raw_metrics.get("memory_pct")
+        if memory_pct is None:
+            memory_limit_mb = raw_metrics.get("memory_limit_mb", 512.0)
+            memory_pct = (memory_mb / memory_limit_mb) * 100.0 if memory_limit_mb > 0 else 0.0
+
         # Assess health status strings
         cpu_status = "ELEVATED" if cpu_usage_pct >= cls.CPU_THRESHOLD_ELEVATED else "NORMAL"
-        ram_status = "NEAR OOM" if memory_mb >= cls.RAM_THRESHOLD_OOM else "NORMAL"
+        ram_status = "NEAR OOM" if memory_pct >= cls.RAM_THRESHOLD_OOM else "NORMAL"
         error_status = "HIGH" if error_rate >= cls.ERROR_RATE_HIGH else "NORMAL"
 
         summary = (
             f"[PROMETHEUS METRIC CONTEXT]\n"
             f"Target Pod: {pod_name}\n"
             f"CPU Usage: {cpu_usage_pct:.1f}% (Status: {cpu_status})\n"
-            f"Memory Allocation: {memory_mb:.1f} MB (Status: {ram_status})\n"
+            f"Memory Allocation: {memory_mb:.1f} MB ({memory_pct:.1f}%, Status: {ram_status})\n"
             f"HTTP Traffic: {total_requests} Total Requests | 500 Errors: {error_500_count} ({error_rate:.1f}%, Status: {error_status})\n"
             f"Avg Request Latency: {avg_latency_ms:.1f} ms"
         )
