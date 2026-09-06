@@ -20,6 +20,8 @@ desktop.ini
 
 # Logs & Temporary files
 *.log
+*.db
+logs/*.db
 logs/*.jsonl
 logs/forensics_*.json
 logs/cloud_opsbench_report.json
