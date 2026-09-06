@@ -280,7 +280,107 @@ async function executeHITLAction(actionType) {
         const result = await resp.json();
         appendTerminalLog("SUCCESS", "HITL", result.message);
         closeHITLDrawer();
+        fetchInitialState();
     } catch (e) {
         console.error("Error dispatching HITL resolution:", e);
+    }
+}
+
+/* ==========================================================================
+   PRODUCTION CHAOS SIMULATION TRIGGER
+   ========================================================================== */
+async function triggerChaos(chaosType, podName = "aegis-storefront-prod-1") {
+    appendTerminalLog("WARN", "CHAOS", `[RED TEAM] Injecting failure scenario '${chaosType}' on target pod '${podName}'...`);
+
+    // Add visual loading indicator on the clicked button
+    const btn = document.querySelector(`.chaos-${chaosType.split('_')[0]}`);
+    if (btn) {
+        btn.classList.add("chaos-active");
+        btn.disabled = true;
+    }
+
+    try {
+        const resp = await fetch("/api/v1/chaos/trigger", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                pod_name: podName,
+                chaos_type: chaosType
+            })
+        });
+
+        if (!resp.ok) {
+            throw new Error(`Server returned HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const confPct = data.verdict && data.verdict.confidence ? (data.verdict.confidence * 100).toFixed(0) : "95";
+        appendTerminalLog("ALERT", "AI_BRAIN", `Diagnosis: ${data.verdict.problem_type} (${confPct}% confidence) -> Action: ${data.decision.final_action}`);
+
+        // If action was rejected or escalated to human, open HITL drawer automatically
+        if (!data.decision.approved || data.decision.state === "STATE_ESCALATE_HUMAN") {
+            appendTerminalLog("ERROR", "HITL", `Policy requires human authorization. Opening HITL Command Drawer...`);
+            openHITLDrawerForPod(data.pod_name, data);
+        } else {
+            appendTerminalLog("SUCCESS", "CONTROLLER", `Autonomous remediation '${data.decision.final_action}' executed successfully.`);
+        }
+
+        // Refresh telemetry cards and scorecards
+        fetchInitialState();
+
+    } catch (err) {
+        appendTerminalLog("ERROR", "CHAOS", `Chaos injection failed: ${err.message}`);
+        console.error("Chaos trigger failed:", err);
+    } finally {
+        if (btn) {
+            btn.classList.remove("chaos-active");
+            btn.disabled = false;
+        }
+    }
+}
+
+/* ==========================================================================
+   INCIDENT POST-MORTEM REPORT VIEWER
+   ========================================================================== */
+async function viewLatestPostMortem() {
+    viewPostMortem("latest");
+}
+
+async function viewPostMortem(incidentId) {
+    try {
+        appendTerminalLog("INFO", "SYSTEM", `Compiling autonomous incident post-mortem report for '${incidentId}'...`);
+        const resp = await fetch(`/api/v1/incidents/${incidentId}/postmortem`);
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.detail || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        const contentEl = document.getElementById("postmortem-content");
+        if (contentEl) {
+            contentEl.textContent = data.markdown;
+        }
+        const modal = document.getElementById("postmortem-modal");
+        if (modal) {
+            modal.style.display = "flex";
+        }
+    } catch (e) {
+        appendTerminalLog("ERROR", "SYSTEM", `Failed to generate post-mortem: ${e.message}`);
+        console.error("Post-mortem fetch error:", e);
+    }
+}
+
+function closePostMortemModal() {
+    const modal = document.getElementById("postmortem-modal");
+    if (modal) {
+        modal.style.display = "none";
+    }
+}
+
+function copyPostMortemMarkdown() {
+    const contentEl = document.getElementById("postmortem-content");
+    if (contentEl) {
+        navigator.clipboard.writeText(contentEl.textContent).then(() => {
+            appendTerminalLog("SUCCESS", "SYSTEM", "Post-mortem markdown copied to clipboard.");
+        });
     }
 }

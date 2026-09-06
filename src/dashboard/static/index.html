@@ -77,7 +77,10 @@
             <section class="panel terminal-panel">
                 <div class="panel-header">
                     <h2>🧠 Real-Time AI Diagnostic & Reasoning Trajectory</h2>
-                    <span class="badge badge-cyan">WebSocket Stream</span>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="badge badge-purple" style="cursor: pointer; border: 1px solid var(--neon-purple); background: rgba(168, 85, 247, 0.2);" onclick="viewLatestPostMortem()">📋 View Post-Mortem</button>
+                        <span class="badge badge-cyan">WebSocket Stream</span>
+                    </div>
                 </div>
                 <div class="terminal-window" id="terminal-window">
                     <div class="terminal-log-line log-info">
@@ -159,6 +162,22 @@
             </div>
             <div class="modal-body" id="forensics-modal-body">
                 <!-- Rendered dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- SRE Incident Post-Mortem Modal Dialog -->
+    <div class="modal-overlay" id="postmortem-modal">
+        <div class="modal-content glassmorphism" style="max-width: 850px;">
+            <div class="modal-header">
+                <h2>📋 Autonomous Incident Post-Mortem Report</h2>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="badge badge-cyan" style="cursor: pointer; padding: 4px 8px;" onclick="copyPostMortemMarkdown()">📋 Copy Markdown</button>
+                    <button class="close-btn" onclick="closePostMortemModal()">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body" id="postmortem-modal-body" style="overflow-y: auto; max-height: 70vh;">
+                <pre class="code-box" id="postmortem-content" style="white-space: pre-wrap; font-family: 'JetBrains Mono', monospace; font-size: 13px;"></pre>
             </div>
         </div>
     </div>

@@ -67,5 +67,27 @@ class TestDashboardServer(unittest.TestCase):
         self.assertEqual(data["target_pod"], "aegis-storefront-prod-1")
         self.assertIn("simulated_process_tree", data)
 
+    def test_get_db_incidents_and_audit_apis(self):
+        """Test GET /api/v1/db/incidents and /api/v1/db/audit endpoints."""
+        resp1 = self.client.get("/api/v1/db/incidents")
+        self.assertEqual(resp1.status_code, 200)
+        self.assertIn("incidents", resp1.json())
+
+        resp2 = self.client.get("/api/v1/db/audit")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertIn("audit_logs", resp2.json())
+
+    def test_generate_incident_postmortem(self):
+        """Test GET /api/v1/incidents/latest/postmortem endpoint."""
+        # Trigger an incident first to ensure DB has records
+        self.client.post("/api/v1/chaos/trigger", json={"pod_name": "aegis-storefront-prod-1", "chaos_type": "oom"})
+        resp = self.client.get("/api/v1/incidents/latest/postmortem")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("markdown", data)
+        self.assertIn("Aegis-SRE Incident Post-Mortem", data["markdown"])
+        self.assertIn("Executive Summary", data["markdown"])
+
 if __name__ == "__main__":
     unittest.main()
+

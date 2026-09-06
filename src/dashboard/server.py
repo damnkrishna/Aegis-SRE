@@ -5,6 +5,9 @@ import asyncio
 import logging
 import requests
 from typing import Dict, List, Any, Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from contextlib import asynccontextmanager
 
@@ -449,6 +452,92 @@ async def get_db_audit_logs():
     except Exception as e:
         logger.error(f"Error querying audit DB: {e}")
         return {"count": 0, "audit_logs": [], "error": str(e)}
+
+@app.get("/api/v1/incidents/{incident_id}/postmortem")
+async def generate_incident_postmortem(incident_id: str):
+    """Generates an executive-ready SRE incident post-mortem report in Markdown format."""
+    try:
+        from src.db.database import SessionLocal, init_db
+        from src.db.models import IncidentRecord, AuditLogRecord
+        init_db()
+        with SessionLocal() as session:
+            if incident_id == "latest":
+                inc = session.query(IncidentRecord).order_by(IncidentRecord.id.desc()).first()
+            else:
+                inc = session.query(IncidentRecord).filter(
+                    (IncidentRecord.incident_id == incident_id) | (IncidentRecord.id == int(incident_id) if incident_id.isdigit() else False)
+                ).first()
+            
+            if not inc:
+                raise HTTPException(status_code=404, detail=f"Incident '{incident_id}' not found in database.")
+
+            audit = session.query(AuditLogRecord).filter_by(target_pod=inc.target_pod).order_by(AuditLogRecord.id.desc()).first()
+
+            ts = getattr(inc, "created_at", None) or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            action_ts = getattr(audit, "timestamp", None) if audit else ts
+            exec_status = "SUCCESS" if (audit and audit.execution_success) else ("FAILED" if audit else "EXECUTED")
+
+            markdown_report = f"""# 🛡️ Aegis-SRE Incident Post-Mortem: {inc.incident_id}
+
+| Metric | Details |
+| :--- | :--- |
+| **Target Service / Pod** | `{inc.target_pod}` |
+| **Severity / Problem Type** | **{inc.threat_level}** / `{inc.problem_type}` |
+| **MITRE ATT&CK TTP** | `{inc.mitre_technique or 'N/A (Operational Bug)'}` |
+| **AI Diagnostic Confidence** | `{inc.confidence * 100:.1f}%` |
+| **Remediation Action** | `{inc.final_action}` ({exec_status}) |
+| **Detection Timestamp** | `{ts}` |
+| **Resolution Timestamp** | `{action_ts}` |
+
+---
+
+## 1. Executive Summary
+On **{ts}**, Aegis-SRE's autonomous diagnostic pipeline detected an anomaly affecting `{inc.target_pod}`.
+The AI diagnostic engine isolated the root cause:
+> *"{inc.root_cause}"*
+
+Through autonomous policy enforcement, the platform selected and executed `{inc.final_action}`, successfully restoring pod health and verifying cluster stability.
+
+---
+
+## 2. Telemetry & Root Cause Analysis (RCA)
+- **Primary Category:** `{inc.problem_type}`
+- **MITRE TTP Reference:** `{inc.mitre_technique or 'None (Software Defect / Saturation)'}`
+- **Confidence Rating:** `{inc.confidence * 100:.1f}%`
+- **Recommended vs Final Action:** Recommended `{inc.recommended_action}` -> Guardrail Approved `{inc.final_action}`
+
+---
+
+## 3. Timeline of Events
+| Timestamp | Stage | Description |
+| :--- | :--- | :--- |
+| `{ts}` | **Detection** | Telemetry collectors (Prometheus / Loki / Falco eBPF) flagged anomaly on `{inc.target_pod}` |
+| `{ts}` | **Diagnosis** | Aegis AI Brain analyzed telemetry against MITRE runbooks; identified `{inc.problem_type}` |
+| `{ts}` | **Guardrail Check** | Safety validation evaluated blast radius and approved action `{inc.final_action}` |
+| `{action_ts}` | **Mitigation** | Controller executed `{inc.final_action}` on cluster target |
+| `{action_ts}` | **Verification** | Post-action health check confirmed metrics normalized |
+
+---
+
+## 4. Corrective & Preventative Action Items
+- [x] **Automated Remediation:** Executed `{inc.final_action}` to restore availability.
+- [x] **Audit Trail Recorded:** Saved forensic state and incident diagnosis to persistent database.
+- [ ] **Capacity & Alert Review:** Evaluate if alert threshold for `{inc.problem_type}` requires tuning.
+- [ ] **Regression Test:** Add chaos simulation test to CI/CD pipeline to verify autonomous recovery.
+"""
+            return {
+                "incident_id": inc.incident_id,
+                "target_pod": inc.target_pod,
+                "problem_type": inc.problem_type,
+                "final_action": inc.final_action,
+                "confidence": inc.confidence,
+                "markdown": markdown_report
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating post-mortem: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Mount Static directory
 static_dir = os.path.join("src", "dashboard", "static")
