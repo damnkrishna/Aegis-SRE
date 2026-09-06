@@ -1,4 +1,5 @@
 import time
+import asyncio
 import random
 import logging
 import json
@@ -121,12 +122,12 @@ async def get_prometheus_metrics():
 # --- Storefront REST Business Endpoints ---
 @app.get("/api/v1/order/compute")
 async def order_compute():
-    time.sleep(random.uniform(0.05, 0.15))
+    await asyncio.sleep(random.uniform(0.05, 0.15))
     return {"order_id": f"ORD-{random.randint(1000, 9999)}", "item": "ARM64 Compute Node", "status": "CONFIRMED"}
 
 @app.get("/api/v1/order/security-key")
 async def order_security_key():
-    time.sleep(random.uniform(0.05, 0.12))
+    await asyncio.sleep(random.uniform(0.05, 0.12))
     return {"order_id": f"ORD-{random.randint(1000, 9999)}", "item": "eBPF Security Key", "status": "CONFIRMED"}
 
 @app.get("/api/v1/inventory/telemetry")
@@ -140,7 +141,7 @@ async def api_good():
 @app.get("/api/v1/slow")
 async def api_slow():
     delay = random.uniform(1.5, 2.5)
-    time.sleep(delay)
+    await asyncio.sleep(delay)
     return {"status": "slow", "delay_seconds": round(delay, 2)}
 
 @app.get("/api/v1/error")

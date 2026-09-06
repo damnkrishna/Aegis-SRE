@@ -8,7 +8,7 @@ services:
       dockerfile: src/target_app/Dockerfile
     container_name: aegis-target-app
     ports:
-      - "8000:8000"
+      - "5000:8000"
     environment:
       - PYTHONUNBUFFERED=1
       - HOSTNAME=aegis-storefront-prod
@@ -72,8 +72,13 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+      - TARGET_APP_URL=http://target-app:8000
     depends_on:
       - target-app
+      - prometheus
+      - loki
     restart: always
 
   # 7. Grafana Dashboard

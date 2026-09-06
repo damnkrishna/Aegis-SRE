@@ -3,7 +3,10 @@ import json
 import time
 import asyncio
 import logging
+import requests
 from typing import Dict, List, Any, Optional
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -17,10 +20,42 @@ from src.brain.notifications import EscalationNotifier
 
 logger = logging.getLogger("aegis-dashboard-server")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    add_terminal_log("SUCCESS", "SYSTEM", "Aegis-SRE Masterpiece Mission Control Engine Online.")
+    add_terminal_log("INFO", "TELEMETRY", "Prometheus & Loki metrics streams connected.")
+    add_terminal_log("INFO", "SECURITY", "Falco eBPF kernel probes active on Cilium CNI mesh.")
+
+    # Initialize SQLite database and restore persisted active quarantines
+    try:
+        from src.db.database import init_db, SessionLocal
+        from src.db.models import QuarantineRecord
+        init_db()
+        with SessionLocal() as session:
+            active_q = session.query(QuarantineRecord).filter_by(active=True).all()
+            for q in active_q:
+                ACTIVE_QUARANTINES[q.target_pod] = {
+                    "pod_name": q.target_pod,
+                    "mitre_technique": q.mitre_technique or "T1059 Command Execution",
+                    "forensics_file": q.forensics_file or f"logs/forensics_{q.target_pod}.json",
+                    "quarantined_at": q.quarantined_at
+                }
+                if q.target_pod in POD_TELEMETRY_STORE:
+                    POD_TELEMETRY_STORE[q.target_pod]["status"] = "QUARANTINED"
+        if ACTIVE_QUARANTINES:
+            add_terminal_log("ALERT", "DATABASE", f"Restored {len(ACTIVE_QUARANTINES)} active eBPF quarantines from persistent database.")
+    except Exception as e:
+        logger.warning(f"Error restoring state from database: {e}")
+
+    task = asyncio.create_task(telemetry_broadcast_loop())
+    yield
+    task.cancel()
+
 app = FastAPI(
     title="Aegis-SRE Masterpiece Real-Time Command Center",
     description="Phase 7 Interactive SRE & Cloud Security Mission Control Center with WebSockets & HITL Controls",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # Active WebSocket connections manager
@@ -103,10 +138,22 @@ def add_terminal_log(level: str, category: str, message: str):
 
 # Background task to broadcast telemetry every 2 seconds
 async def telemetry_broadcast_loop():
+    prom_url = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
     while True:
         try:
             timestamp_str = time.strftime("%H:%M:%S")
-            # Update background telemetry jitter
+
+            # Attempt to query live Prometheus for metrics
+            try:
+                p_resp = requests.get(f"{prom_url}/api/v1/query", params={"query": "sum(http_requests_total)"}, timeout=0.8)
+                if p_resp.status_code == 200:
+                    res = p_resp.json().get("data", {}).get("result", [])
+                    if res and "aegis-storefront-prod-1" in POD_TELEMETRY_STORE:
+                        POD_TELEMETRY_STORE["aegis-storefront-prod-1"]["total_requests"] = int(float(res[0]["value"][1]))
+            except Exception:
+                pass
+
+            # Update background telemetry jitter for healthy pods
             for pod_name, data in POD_TELEMETRY_STORE.items():
                 if data["status"] == "HEALTHY":
                     data["cpu_pct"] = max(10.0, min(95.0, round(data["cpu_pct"] + (time.time() % 3 - 1.5) * 2.0, 1)))
@@ -130,13 +177,6 @@ async def telemetry_broadcast_loop():
         except Exception as e:
             logger.error(f"Error in telemetry broadcast loop: {e}")
         await asyncio.sleep(2.0)
-
-@app.on_event("startup")
-async def startup_event():
-    add_terminal_log("SUCCESS", "SYSTEM", "Aegis-SRE Masterpiece Mission Control Engine Online.")
-    add_terminal_log("INFO", "TELEMETRY", "Prometheus & Loki metrics streams connected.")
-    add_terminal_log("INFO", "SECURITY", "Falco eBPF kernel probes active on Cilium CNI mesh.")
-    asyncio.create_task(telemetry_broadcast_loop())
 
 @app.websocket("/ws/telemetry")
 async def websocket_endpoint(websocket: WebSocket):
@@ -381,6 +421,34 @@ async def get_forensics(pod_name: str):
             return json.load(f)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/db/incidents")
+async def get_db_incidents():
+    """Returns stored incidents from persistent SQLite database."""
+    try:
+        from src.db.database import SessionLocal, init_db
+        from src.db.models import IncidentRecord
+        init_db()
+        with SessionLocal() as session:
+            incidents = session.query(IncidentRecord).order_by(IncidentRecord.id.desc()).limit(50).all()
+            return {"count": len(incidents), "incidents": [inc.to_dict() for inc in incidents]}
+    except Exception as e:
+        logger.error(f"Error querying incidents DB: {e}")
+        return {"count": 0, "incidents": [], "error": str(e)}
+
+@app.get("/api/v1/db/audit")
+async def get_db_audit_logs():
+    """Returns stored action audit logs from persistent SQLite database."""
+    try:
+        from src.db.database import SessionLocal, init_db
+        from src.db.models import AuditLogRecord
+        init_db()
+        with SessionLocal() as session:
+            logs = session.query(AuditLogRecord).order_by(AuditLogRecord.id.desc()).limit(50).all()
+            return {"count": len(logs), "audit_logs": [l.to_dict() for l in logs]}
+    except Exception as e:
+        logger.error(f"Error querying audit DB: {e}")
+        return {"count": 0, "audit_logs": [], "error": str(e)}
 
 # Mount Static directory
 static_dir = os.path.join("src", "dashboard", "static")
