@@ -67,62 +67,35 @@ class ActionExecutor:
         self.dry_run_mode = dry_run_mode
         self.policy_generator = CiliumPolicyGenerator()
 
-    def execute_decision(self, decision: GuardrailDecision) -> ActionExecutionResult:
+    def _resolve_deployment_name(self, target_pod: str, namespace: str = "default") -> str:
         """
-        Main execution router for a GuardrailDecision object.
+        Dynamically extracts parent deployment name from pod using K8s metadata or label conventions.
         """
-        # 1. Verify approval state
-        if not decision.approved or decision.state != STATE_GUARDRAIL_APPROVED:
-            logger.warning(
-                f"CONTROLLER SKIP: Decision for pod '{decision.target_pod}' was not approved "
-                f"(State: {decision.state}, Reason: {decision.reason})."
-            )
-            result = ActionExecutionResult(
-                success=False,
-                action=decision.final_action,
-                target_pod=decision.target_pod,
-                details=f"Execution skipped: Guardrail decision not approved. Reason: {decision.reason}",
-                status_code="SKIPPED_NOT_APPROVED"
-            )
-            self._write_audit_log(decision, result)
-            return result
+        if not self.dry_run_mode:
+            try:
+                res = subprocess.run(
+                    ["kubectl", "get", "pod", target_pod, "-n", namespace, "-o", "jsonpath={.metadata.ownerReferences[0].name}"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if res.returncode == 0 and res.stdout.strip():
+                    owner = res.stdout.strip()
+                    if "-" in owner:
+                        return owner.rsplit("-", 1)[0]
+                    return owner
+            except Exception as e:
+                logger.debug(f"Could not resolve deployment via kubectl ownerReferences: {e}")
 
-        action = decision.final_action.upper()
-        target_pod = decision.target_pod
-
-        # 2. Dispatch to specific action handlers
-        if action == "RESTART_POD":
-            result = self.restart_pod(target_pod, namespace=self.namespace, reason=decision.reason)
-        elif action == "SCALE_DEPLOYMENT":
-            result = self.scale_deployment(target_pod, replicas=2, namespace=self.namespace)
-        elif action == "CILIUM_QUARANTINE_EBPF":
-            result = self.quarantine_pod_ebpf(
-                target_pod=target_pod,
-                namespace=self.namespace,
-                mitre_technique=decision.mitre_technique,
-                reason=decision.reason
-            )
-        elif action == "UNQUARANTINE_POD":
-            result = self.unquarantine_pod_ebpf(target_pod=target_pod, namespace=self.namespace)
-        elif action == "ESCALATE":
-            result = ActionExecutionResult(
-                success=True,
-                action="ESCALATE",
-                target_pod=target_pod,
-                details=f"Escalated to human operator on-call. Reason: {decision.reason}",
-                status_code="ESCALATED_HUMAN"
-            )
-        else:
-            result = ActionExecutionResult(
-                success=False,
-                action=action,
-                target_pod=target_pod,
-                details=f"Unknown or unsupported action type: {action}",
-                status_code="FAILED_UNKNOWN_ACTION"
-            )
-
-        self._write_audit_log(decision, result)
-        return result
+        # Dynamic naming heuristic:
+        # e.g., 'aegis-storefront-prod-1' -> 'aegis-storefront-prod'
+        # e.g., 'checkout-service-74bb65757d-4f27q' -> 'checkout-service'
+        parts = target_pod.split("-")
+        if len(parts) >= 3:
+            if len(parts[-2]) in [8, 9, 10]:
+                return "-".join(parts[:-2])
+            return "-".join(parts[:-1])
+        elif len(parts) == 2:
+            return parts[0]
+        return target_pod
 
     def restart_pod(self, target_pod: str, namespace: str = "default", reason: str = "") -> ActionExecutionResult:
         """
@@ -130,7 +103,7 @@ class ActionExecutor:
         """
         logger.info(f"CONTROLLER EXECUTE [RESTART_POD]: Initiating pod restart for '{target_pod}' in namespace '{namespace}'.")
         
-        deployment_name = target_pod.split("-")[0] if "-" in target_pod else target_pod
+        deployment_name = self._resolve_deployment_name(target_pod, namespace)
 
         if self.dry_run_mode:
             health_verified = self.verify_remediation_health(target_pod, "RESTART_POD")
@@ -184,7 +157,7 @@ class ActionExecutor:
         """
         Executes deployment replica scaling via Kubernetes API.
         """
-        deployment_name = target_pod.split("-")[0] if "-" in target_pod else target_pod
+        deployment_name = self._resolve_deployment_name(target_pod, namespace)
         logger.info(f"CONTROLLER EXECUTE [SCALE_DEPLOYMENT]: Scaling '{deployment_name}' to {replicas} replicas.")
 
         if self.dry_run_mode:
@@ -256,6 +229,7 @@ class ActionExecutor:
         policy_yaml = self.policy_generator.to_yaml(cilium_policy)
 
         if self.dry_run_mode:
+            self._record_quarantine_db(target_pod, namespace, mitre_technique, reason, forensics_file, policy_yaml, active=True)
             details = (
                 f"[DRY_RUN SUCCESS] Generated zero-trust CiliumNetworkPolicy 'aegis-quarantine-{target_pod}' "
                 f"enforcing eBPF drop-all ingress/egress. MITRE TTP: {mitre_technique or 'N/A'}. "
@@ -284,6 +258,7 @@ class ActionExecutor:
             stdout, stderr = proc.communicate(input=policy_yaml, timeout=10)
 
             if proc.returncode == 0:
+                self._record_quarantine_db(target_pod, namespace, mitre_technique, reason, forensics_file, policy_yaml, active=True)
                 details = f"CiliumNetworkPolicy applied successfully: {stdout.strip()}. Forensics saved to {forensics_file}."
                 return ActionExecutionResult(
                     success=True,
@@ -317,12 +292,42 @@ class ActionExecutor:
                 forensics_file=forensics_file
             )
 
+    def _record_quarantine_db(self, target_pod: str, namespace: str = "default", mitre_technique: str = None, reason: str = None, forensics_file: str = None, policy_yaml: str = None, active: bool = True):
+        try:
+            from src.db.database import SessionLocal, init_db
+            from src.db.models import QuarantineRecord
+            init_db()
+            with SessionLocal() as session:
+                rec = session.query(QuarantineRecord).filter_by(target_pod=target_pod).first()
+                if rec:
+                    rec.active = active
+                    if active:
+                        rec.mitre_technique = mitre_technique
+                        rec.trigger_reason = reason
+                        rec.forensics_file = forensics_file
+                        rec.policy_yaml = policy_yaml
+                elif active:
+                    rec = QuarantineRecord(
+                        target_pod=target_pod,
+                        namespace=namespace,
+                        mitre_technique=mitre_technique,
+                        trigger_reason=reason,
+                        forensics_file=forensics_file,
+                        policy_yaml=policy_yaml,
+                        active=True
+                    )
+                    session.add(rec)
+                session.commit()
+        except Exception as e:
+            logger.debug(f"SQLite quarantine recording fallback: {e}")
+
     def unquarantine_pod_ebpf(self, target_pod: str, namespace: str = "default") -> ActionExecutionResult:
         """
         Executes action reversibility: removes CiliumNetworkPolicy and restores pod traffic flow.
         """
         logger.info(f"CONTROLLER EXECUTE [UNQUARANTINE_POD]: Removing eBPF quarantine policy for pod '{target_pod}'.")
         policy_spec = self.policy_generator.generate_unquarantine_spec(target_pod, namespace)
+        self._record_quarantine_db(target_pod, namespace=namespace, active=False)
 
         if self.dry_run_mode:
             details = f"[DRY_RUN SUCCESS] Removed CiliumNetworkPolicy 'aegis-quarantine-{target_pod}'. Normal pod network traffic restored."
@@ -413,24 +418,25 @@ class ActionExecutor:
             self._write_audit_log(decision, result)
             return result
 
-        # Try Go Controller REST Service first if active
-        go_resp = self._dispatch_to_go_controller(decision)
-        if go_resp and go_resp.get("status") == "success":
-            forensics_file = None
-            if decision.final_action == "CILIUM_QUARANTINE_EBPF":
-                forensics_file = self._capture_dfir_forensics_snapshot(decision.target_pod, decision.mitre_technique, decision.reason)
+        # Try Go Controller REST Service first if active and not in dry-run mode
+        if not self.dry_run_mode:
+            go_resp = self._dispatch_to_go_controller(decision)
+            if go_resp and go_resp.get("status") == "success":
+                forensics_file = None
+                if decision.final_action == "CILIUM_QUARANTINE_EBPF":
+                    forensics_file = self._capture_dfir_forensics_snapshot(decision.target_pod, decision.mitre_technique, decision.reason)
 
-            result = ActionExecutionResult(
-                success=True,
-                action=decision.final_action,
-                target_pod=decision.target_pod,
-                details=f"[GO-CONTROLLER SERVICE] {go_resp.get('message')}",
-                status_code=f"COMPLETED_GO_{go_resp.get('mode', 'REST').upper()}",
-                forensics_file=forensics_file,
-                health_verified=True
-            )
-            self._write_audit_log(decision, result)
-            return result
+                result = ActionExecutionResult(
+                    success=True,
+                    action=decision.final_action,
+                    target_pod=decision.target_pod,
+                    details=f"[GO-CONTROLLER SERVICE] {go_resp.get('message')}",
+                    status_code=f"COMPLETED_GO_{go_resp.get('mode', 'REST').upper()}",
+                    forensics_file=forensics_file,
+                    health_verified=True
+                )
+                self._write_audit_log(decision, result)
+                return result
 
         action = decision.final_action.upper()
         target_pod = decision.target_pod
@@ -547,11 +553,21 @@ class ActionExecutor:
         Confirms target pod transitions back to Running/Ready status.
         """
         logger.info(f"CONTROLLER HEALTH-CHECK: Verifying post-remediation health for '{target_pod}' after action '{action}'...")
-        # In dry run mode or live K8s check, verify readiness
+        if not self.dry_run_mode:
+            try:
+                cmd = ["kubectl", "get", "pod", target_pod, "-n", self.namespace, "-o", "jsonpath={.status.phase}"]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if res.returncode == 0:
+                    phase = res.stdout.strip()
+                    logger.info(f"Pod '{target_pod}' phase after {action}: {phase}")
+                    return phase in ["Running", "Succeeded"]
+            except Exception as e:
+                logger.warning(f"Live health verification failed: {e}")
+                return False
         return True
 
     def _write_audit_log(self, decision: GuardrailDecision, result: ActionExecutionResult):
-        """Appends structured controller execution record to logs/controller_audit.jsonl."""
+        """Appends structured controller execution record to logs/controller_audit.jsonl and SQLite DB."""
         try:
             os.makedirs(os.path.dirname(self.audit_log_path), exist_ok=True)
             log_entry = {
@@ -574,4 +590,26 @@ class ActionExecutor:
             with open(self.audit_log_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_entry) + "\n")
         except Exception as e:
-            logger.error(f"Failed to write controller audit log: {e}")
+            logger.error(f"Failed to write controller audit log file: {e}")
+
+        # SQLite DB persistence
+        try:
+            from src.db.database import SessionLocal, init_db
+            from src.db.models import AuditLogRecord
+            init_db()
+            with SessionLocal() as session:
+                rec = AuditLogRecord(
+                    timestamp=result.timestamp,
+                    target_pod=decision.target_pod,
+                    problem_type=decision.problem_type,
+                    executed_action=result.action,
+                    execution_success=result.success,
+                    status_code=result.status_code,
+                    details=result.details,
+                    forensics_file=result.forensics_file,
+                    health_verified=result.health_verified
+                )
+                session.add(rec)
+                session.commit()
+        except Exception as e:
+            logger.debug(f"SQLite audit log write fallback: {e}")

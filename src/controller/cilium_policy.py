@@ -34,6 +34,10 @@ class CiliumPolicyGenerator:
         if reason:
             annotations["aegis.io/reason"] = reason
 
+        match_labels = {"io.kubernetes.pod.name": pod_name}
+        if app_label and app_label != pod_name:
+            match_labels["app"] = app_label
+
         policy_spec = {
             "apiVersion": "cilium.io/v2",
             "kind": "CiliumNetworkPolicy",
@@ -50,9 +54,7 @@ class CiliumPolicyGenerator:
             "spec": {
                 "description": f"Zero-trust eBPF quarantine isolating pod '{pod_name}' due to security threat detection.",
                 "endpointSelector": {
-                    "matchLabels": {
-                        "app": target_app
-                    }
+                    "matchLabels": match_labels
                 },
                 "ingress": [],  # Deny ALL incoming traffic at eBPF layer
                 "egress": []    # Deny ALL outgoing traffic at eBPF layer

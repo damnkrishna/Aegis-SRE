@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -75,8 +76,21 @@ func (r *ActionReconciler) handleRestartPod(ctx context.Context, namespace, targ
 	return nil
 }
 
+func resolveDeploymentName(targetPod string) string {
+	parts := strings.Split(targetPod, "-")
+	if len(parts) >= 3 {
+		if len(parts[len(parts)-2]) >= 8 {
+			return strings.Join(parts[:len(parts)-2], "-")
+		}
+		return strings.Join(parts[:len(parts)-1], "-")
+	} else if len(parts) == 2 {
+		return parts[0]
+	}
+	return targetPod
+}
+
 func (r *ActionReconciler) handleScaleDeployment(ctx context.Context, namespace, targetPod string, replicas int32) error {
-	deploymentName := targetPod
+	deploymentName := resolveDeploymentName(targetPod)
 	log.Printf("[GO-CONTROLLER EXECUTE] Scaling deployment %s in namespace %s to %d replicas", deploymentName, namespace, replicas)
 
 	scale, err := r.KubeClient.AppsV1().Deployments(namespace).GetScale(ctx, deploymentName, metav1.GetOptions{})
@@ -112,6 +126,7 @@ func (r *ActionReconciler) handleCiliumQuarantine(ctx context.Context, namespace
 				"labels": map[string]interface{}{
 					"aegis.io/quarantine": "true",
 					"app.kubernetes.io/managed-by": "aegis-sre",
+					"target-pod": targetPod,
 				},
 				"annotations": map[string]interface{}{
 					"aegis.io/mitre-ttp": mitreTTP,
@@ -121,7 +136,7 @@ func (r *ActionReconciler) handleCiliumQuarantine(ctx context.Context, namespace
 			"spec": map[string]interface{}{
 				"endpointSelector": map[string]interface{}{
 					"matchLabels": map[string]interface{}{
-						"app": targetPod,
+						"io.kubernetes.pod.name": targetPod,
 					},
 				},
 				"ingress": []interface{}{},
